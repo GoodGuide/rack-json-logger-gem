@@ -46,57 +46,61 @@ class RackJsonLogger
         ], subject.events
       }
     end
+  end
 
-    describe EventLogger::IOProxy do
-      let(:events) { [] }
+  describe EventLogger::IOProxy do
+    let(:events) { [] }
+    before { Timecop.freeze }
+    after { Timecop.return }
 
-      subject do
-        EventLogger::IOProxy.new do |obj|
-          events << obj
-        end
-      end
-
-      it 'satisfies IO::generic_writable interface while calling the handler for each bit written' do
-        subject.print 'foo'
-        subject.puts 'foo', 'bar'
-        subject.write 'bar'
-        subject.putc ?.
-        subject.printf '%05.2f', 1.1
-        subject << 'asd123'
-        subject.write_nonblock 'zxc21'
-
-        assert_equal ['foo', 'foo', "\n", 'bar', "\n", 'bar', '.', '01.10', 'asd123', 'zxc21'], events
-
-        # events stream should match the string value
-        assert_equal subject.string, events.join, 'something about the implementation does not look right'
+    subject do
+      EventLogger::IOProxy.new do |obj|
+        events << obj
       end
     end
 
-    describe EventLogger::LoggerProxy do
-      let(:events) { [] }
+    it 'satisfies IO::generic_writable interface while calling the handler for each bit written' do
+      subject.print 'foo'
+      subject.puts 'foo', 'bar'
+      subject.write 'bar'
+      subject.putc ?.
+      subject.printf '%05.2f', 1.1
+      subject << 'asd123'
+      subject.write_nonblock 'zxc21'
 
-      subject do
-        EventLogger::LoggerProxy.new do |severity, datetime, progname, msg|
-          events << [severity, datetime, progname, msg]
-        end
+      assert_equal ['foo', 'foo', "\n", 'bar', "\n", 'bar', '.', '01.10', 'asd123', 'zxc21'], events
+
+      # events stream should match the string value
+      assert_equal subject.string, events.join, 'something about the implementation does not look right'
+    end
+  end
+
+  describe EventLogger::LoggerProxy do
+    before { Timecop.freeze }
+    after { Timecop.return }
+    let(:events) { [] }
+
+    subject do
+      EventLogger::LoggerProxy.new do |severity, datetime, progname, msg|
+        events << [severity, datetime, progname, msg]
       end
+    end
 
-      it 'calls the event_handler for each event logged' do
-        subject.info  'foo'
-        subject.debug 'bar'
-        subject.error('myProg') { 'whiz' }
-        subject.fatal 3
+    it 'calls the event_handler for each event logged' do
+      subject.info  'foo'
+      subject.debug 'bar'
+      subject.error('myProg') { 'whiz' }
+      subject.fatal 3
 
-        assert_equal(
-          [
-            ['INFO',  Time.now, nil,      'foo'],
-            ['DEBUG', Time.now, nil,      'bar'],
-            ['ERROR', Time.now, 'myProg', 'whiz'],
-            ['FATAL', Time.now, nil,      '3'],
-          ],
-          events
-        )
-      end
+      assert_equal(
+        [
+          ['INFO',  Time.now, nil,      'foo'],
+          ['DEBUG', Time.now, nil,      'bar'],
+          ['ERROR', Time.now, 'myProg', 'whiz'],
+          ['FATAL', Time.now, nil,      '3'],
+        ],
+        events
+      )
     end
   end
 end

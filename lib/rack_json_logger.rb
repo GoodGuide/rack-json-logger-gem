@@ -92,11 +92,19 @@ class RackJsonLogger
     def request_as_json
       {
         method: env['REQUEST_METHOD'],
-        path: env['REQUEST_URI'],
+        path: env.fetch('REQUEST_URI') {
+          [env['PATH_INFO'], env['QUERY_STRING']].compact.join('?')
+        },
         user_agent: env['HTTP_USER_AGENT'],
-        remote_addr: env.fetch('HTTP_X_REAL_IP') { env['REMOTE_ADDR'] },
-        host: env.fetch('HTTP_HOST') { env['SERVER_HOST'] },
-        scheme: env.fetch('HTTP_X_FORWARDED_PROTO') { env['rack.url_scheme'] },
+        remote_addr: env.fetch('HTTP_X_REAL_IP') {
+          env['REMOTE_ADDR']
+        },
+        host: env.fetch('HTTP_HOST') {
+          env['SERVER_HOST']
+        },
+        scheme: env.fetch('HTTP_X_FORWARDED_PROTO') {
+          env['rack.url_scheme']
+        },
       }
     end
 
@@ -104,8 +112,12 @@ class RackJsonLogger
       response = {
         duration: duration,
         status: response_status,
-        length: response_headers['Content-Length'],
       }
+
+      if (v = response_headers['Content-Length'])
+        response[:length] = Integer(v)
+      end
+
       case response[:status]
       when 301, 302
         response[:redirect] = response_headers['Location']

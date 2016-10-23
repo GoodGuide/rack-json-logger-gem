@@ -5,10 +5,18 @@ require 'pp'
 require 'simplecov'
 require 'minitest/autorun'
 require 'minitest/spec'
+require 'minitest/reporters'
 require 'hash_diff'
 require 'deep_dup'
 require 'awesome_print'
 require 'timecop'
+
+Minitest::Reporters.use! [
+  Minitest::Reporters::DefaultReporter.new,
+  # Minitest::Reporters::MeanTimeReporter.new(previous_runs_filename: File.expand_path('../tmp/minitest_previous_runs', __dir__), show_progress: false),
+  Minitest::Reporters::HtmlReporter.new(reports_dir: 'spec/report'),
+  Minitest::Reporters::JUnitReporter.new('spec/report'),
+]
 
 class TestLogger < ::Logger
   def initialize

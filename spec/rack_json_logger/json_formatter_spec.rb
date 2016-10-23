@@ -44,7 +44,7 @@ describe RackJsonLogger::JSONFormatter do
       assert_json_log_event(logger, :info, log_obj)
     end
 
-    it 'is does not depend on value of "env"' do
+    it 'does not depend on value of "env"' do
       env.merge!(foo: 1, bar: 2)
       execute
       assert_json_log_event(logger, :info, log_obj)
