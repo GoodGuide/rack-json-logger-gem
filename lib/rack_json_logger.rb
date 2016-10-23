@@ -186,13 +186,7 @@ class RackJsonLogger
   end
 
   def validate_trace_env(trace_env)
-    ary = nil
-    if trace_env.is_a?(Proc)
-      ary = trace_env.arity
-    elsif trace_env.respond_to?(:call)
-      ary = trace_env.method(:call).arity
-    end
-    ary == 2 or
+    trace_env.is_a?(Proc) and trace_env.arity == 2 or
       fail ArgumentError, 'trace_env should be either Boolean or an object which responds to #call(key, value)'
 
     trace_env

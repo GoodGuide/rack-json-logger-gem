@@ -267,9 +267,8 @@ describe RackJsonLogger do
       let(:real_app) { APPS[:sad] }
 
       let(:call_app) {
-        assert_raises(RuntimeError) do
-          app.call(env)
-        end
+        ex = assert_raises(RuntimeError) { app.call(env) }
+        assert_equal 'boom', ex.message
       }
 
       let(:log_obj) {
@@ -355,6 +354,15 @@ describe RackJsonLogger do
                 },
                 log_obj.fetch(:env)
               )
+            end
+
+            describe 'with wrong arity' do
+              it 'raises an exception' do
+                ex = assert_raises(ArgumentError) {
+                  app.trace_env = -> (key) { key =~ /^HTTP_/ }
+                }
+                assert_match(/trace_env/, ex.message)
+              end
             end
           end
         end
