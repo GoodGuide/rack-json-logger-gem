@@ -12,9 +12,9 @@ Gem::Specification.new do |gem|
   gem.summary       = gem.description
   gem.homepage      = ''
 
-  gem.files         = `git ls-files -z`.split("\x0").reject do |f|
-    f.match(%r{^(test|spec|features)/})
-  end
+  # gem.files         = `git ls-files -z`.split("\x0").reject do |f|
+  #   f.match(%r{^(test|spec|features)/})
+  # end
   gem.bindir        = 'exe'
   gem.executables   = gem.files.grep(%r{^exe/}) { |f| File.basename(f) }
   gem.require_paths = ['lib']
@@ -24,7 +24,8 @@ Gem::Specification.new do |gem|
   gem.add_dependency 'trollop'
   gem.add_development_dependency 'minitest', '~> 5.0'
   gem.add_development_dependency 'minitest-reporters'
-  gem.add_development_dependency 'bundler',  '~> 1.13'
+  gem.add_development_dependency 'minitest-focus'
+  gem.add_development_dependency 'bundler',  '~> 1.11'
   gem.add_development_dependency 'rake',     '~> 10.0'
   gem.add_development_dependency 'rack-test'
   gem.add_development_dependency 'hash_diff'

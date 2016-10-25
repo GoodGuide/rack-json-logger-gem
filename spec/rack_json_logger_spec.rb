@@ -94,7 +94,7 @@ describe RackJsonLogger do
       end
 
       assert_instance_of RackJsonLogger::EventLogger::IOProxy, called_with_env['rack.errors']
-      assert_instance_of RackJsonLogger::EventLogger::LoggerProxy, called_with_env['rack.logger']
+      assert_respond_to called_with_env['rack.logger'], :stream_name
     end
 
     describe 'when pushed through the Rack::Lint middleware' do
@@ -248,7 +248,7 @@ describe RackJsonLogger do
 
       describe 'response.redirect' do
         [301, 302].each do |status|
-          describe 'when the response is #{status}' do
+          describe "when the response is #{status}" do
             let(:real_app) {
               -> (_env) {
                 [status, { 'Location' => 'http://google.com' }, []]
@@ -258,6 +258,32 @@ describe RackJsonLogger do
               assert_equal status, log_obj[:response][:status]
               assert_equal 'http://google.com', log_obj[:response][:redirect]
             end
+          end
+        end
+      end
+
+      describe 'log_events' do
+        describe 'when the app never used the log' do
+          it 'is non-existent' do
+            refute log_obj.key?(:log_events)
+          end
+        end
+
+        describe 'when the app used the log' do
+          let(:real_app) do
+            -> (env) {
+              env['rack.logger'].info 'some event'
+              APPS[:happy].call(env)
+            }
+          end
+
+          it 'contains the log events' do
+            assert_equal(
+              [
+                RackJsonLogger::EventLogger::LogEvent.new(:'rack.logger', request_duration, 'some event', 'INFO')
+              ],
+              log_obj.fetch(:log_events)
+            )
           end
         end
       end

@@ -1,0 +1,37 @@
+version: '2'
+
+volumes:
+  gems_mri_23: {}
+  gems_rbx_3_62: {}
+  gems_jruby_9000: {}
+
+services:
+  mri2_3:
+    image: ruby:2.3
+    working_dir: /work
+    entrypoint: /work/devtools/docker-entrypoint.sh
+    command: bundle exec rake test
+    volumes:
+      - .:/work
+      - gems_mri_23:/usr/local/bundle
+
+  # rbx_3_62:
+  #   image: rubinius/docker
+  #   working_dir: /work
+  #   entrypoint: /work/devtools/docker-entrypoint.sh
+  #   command: bundle exec rake test
+  #   volumes:
+  #     - .:/work
+  #     - gems_rbx_3_62:/opt/rubinius/3.62/gems
+
+  jruby_9000:
+    image: quay.io/goodguide/ruby:alpine-jruby-9.1.5.0
+    working_dir: /work
+    entrypoint: /work/devtools/docker-entrypoint.sh
+    command: bundle exec rake test
+    environment:
+      JRUBY_OPTS: --dev -J-Djava.security.egd=/dev/urandom
+      BUNDLE_BIN: /usr/local/bundle/bin
+    volumes:
+      - .:/work
+      - gems_jruby_9000:/usr/local/lib/ruby/gems/

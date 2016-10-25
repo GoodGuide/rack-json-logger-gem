@@ -20,6 +20,12 @@ class RackJsonLogger
     yield self if block_given?
   end
 
+  def self.output_proxies
+    @stdout_proxy ||= EventLogger::IOProxy.new(STDOUT)
+    @stderr_proxy ||= EventLogger::IOProxy.new(STDERR)
+    [@stdout_proxy, @stderr_proxy]
+  end
+
   attr_reader :app
   attr_accessor :formatter
   attr_writer :logger
@@ -160,19 +166,22 @@ class RackJsonLogger
   end
 
   def with_captured_output_streams(env, event_logger)
-    $stdout, previous_stdout = event_logger.build_io_proxy('stdout'), $stdout
-    $stderr, previous_stderr = event_logger.build_io_proxy('stderr'), $stderr
-    env['rack.errors'], previous_rack_errors = event_logger.build_io_proxy('rack.errors'), env['rack.errors']
-    env['rack.logger'], previous_rack_logger = event_logger.build_logger_proxy('rack.logger'), env['rack.logger']
+    previous_rack_errors = env['rack.errors']
+    previous_rack_logger = env['rack.logger']
 
-    yield
-  ensure
-    # restore output IOs
-    $stderr = previous_stderr
-    $stdout = previous_stdout
+    Thread.current[:rack_json_logs_event_handler] = event_logger
 
-    env['rack.errors'] = previous_rack_errors
-    env['rack.logger'] = previous_rack_logger
+    env['rack.errors'] = EventLogger::IOProxy.new(previous_rack_errors, :'rack.errors')
+    env['rack.logger'] = EventLogger::LoggerProxy.wrap(previous_rack_logger, :'rack.logger')
+
+    begin
+      yield
+    ensure
+      env['rack.errors'] = previous_rack_errors
+      env['rack.logger'] = previous_rack_logger
+
+      Thread.current[:rack_json_logs_event_handler] = nil
+    end
   end
 
   def logger(env)
