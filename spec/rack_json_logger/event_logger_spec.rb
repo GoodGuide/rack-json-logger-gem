@@ -53,6 +53,18 @@ class RackJsonLogger
           )
           assert_equal('{"stream":"my-stream","time":0.01,"body":"foo bar","severity":"DEBUG","progname":"prog1"}', e.to_json)
         }
+        specify {
+          e = EventLogger::LogEvent.new('my-stream', 0.01, 'foo bar')
+          assert_equal(
+            {
+              stream: 'my-stream',
+              time: 0.01,
+              body: 'foo bar',
+            },
+            e.as_json
+          )
+          assert_equal('{"stream":"my-stream","time":0.01,"body":"foo bar"}', e.to_json)
+        }
       end
     end
 

@@ -50,7 +50,7 @@ class RackJsonLogger
       end
 
       def as_json
-        to_h
+        to_h.reject { |_k, v| v.nil? }
       end
 
       def to_json
