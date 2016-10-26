@@ -401,15 +401,29 @@ describe RackJsonLogger do
           end
 
           describe 'env' do
-            it 'is the request env' do
-              assert_equal(env, log_obj.fetch(:env))
+            subject { log_obj.fetch(:env) }
+
+            it 'is the request env (with non-primative values #inspect-ed' do
+              env.keys.each do |key|
+                true_value = env.fetch(key)
+                returned_value = subject.fetch(key)
+
+                case true_value
+                when String, Numeric, TrueClass, FalseClass, NilClass
+                  assert_equal true_value, returned_value,
+                    "log_obj.env.#{key} should == `#{true_value.inspect}`"
+                else
+                  assert_equal true_value.inspect, returned_value,
+                    "log_obj.env.#{key} should == `#{true_value.inspect.inspect}`"
+                end
+              end
             end
 
             describe 'when the middleware has trace_env = false' do
               before { app.trace_env = false }
 
               it 'is an empty hash' do
-                assert log_obj.fetch(:env).empty?
+                assert subject.empty?
               end
             end
 
@@ -426,7 +440,7 @@ describe RackJsonLogger do
                     'HTTP_HOST' => 'localhost',
                     'HTTP_USER_AGENT' => http_user_agent,
                   },
-                  log_obj.fetch(:env)
+                  subject
                 )
               end
 

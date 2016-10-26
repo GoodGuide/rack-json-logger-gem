@@ -90,7 +90,7 @@ class RackJsonLogger
       log[:id] = request_id if request_id
       if exception
         log[:exception] = exception_as_json
-        log[:env] = env.select(&trace_env_filter)
+        log[:env] = env_as_json
       end
       log
     end
@@ -142,6 +142,19 @@ class RackJsonLogger
         class: exception.class.name,
         message: exception.message,
         backtrace: exception.backtrace.select(&trace_stack_filter),
+      }
+    end
+
+    # return the filtered env, with any non-JSON-primative values stringified instead of letting the JSON serializer do whatever with them
+    def env_as_json
+      env.each_with_object({}) { |(k, v), hash|
+        next unless trace_env_filter.call(k, v)
+        case v
+        when String, Numeric, NilClass, TrueClass, FalseClass
+          hash[k] = v
+        else
+          hash[k] = v.inspect
+        end
       }
     end
 
