@@ -139,7 +139,7 @@ class RackJsonLogger
 
     def exception_as_json
       {
-        class: exception.class,
+        class: exception.class.name,
         message: exception.message,
         backtrace: exception.backtrace.select(&trace_stack_filter),
       }

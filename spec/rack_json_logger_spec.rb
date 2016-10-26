@@ -362,7 +362,7 @@ describe RackJsonLogger do
             it 'includes the exception' do
               assert_equal(
                 {
-                  class: RuntimeError,
+                  class: 'RuntimeError',
                   message: 'boom',
                   backtrace: [
                     'some-file.rb:4',
