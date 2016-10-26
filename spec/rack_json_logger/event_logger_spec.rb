@@ -10,17 +10,13 @@ class RackJsonLogger
     before do
       Timecop.freeze
 
-      if attach_event_logger
-        Thread.current[:rack_json_logs_event_handler] = event_logger
-      end
+      Thread.current[:rack_json_logs_event_handler] = event_logger if attach_event_logger
     end
 
     after do
       Timecop.return
 
-      if attach_event_logger
-        Thread.current[:rack_json_logs_event_handler] = nil
-      end
+      Thread.current[:rack_json_logs_event_handler] = nil if attach_event_logger
     end
 
     describe '#add_logger_event' do
@@ -38,6 +34,25 @@ class RackJsonLogger
         event_logger.add_io_event('my-stream', 'foo bar')
 
         assert_equal [EventLogger::LogEvent.new('my-stream', 1.3, 'foo bar')], event_logger.events
+      end
+    end
+
+    describe 'LogEvent' do
+      describe '#to_json' do
+        specify {
+          e = EventLogger::LogEvent.new('my-stream', 0.01, 'foo bar', 'DEBUG', 'prog1')
+          assert_equal(
+            {
+              stream: 'my-stream',
+              time: 0.01,
+              body: 'foo bar',
+              severity: 'DEBUG',
+              progname: 'prog1',
+            },
+            e.as_json
+          )
+          assert_equal('{"stream":"my-stream","time":0.01,"body":"foo bar","severity":"DEBUG","progname":"prog1"}', e.to_json)
+        }
       end
     end
 
@@ -93,7 +108,7 @@ class RackJsonLogger
       subject { logger_proxy }
 
       before {
-        subject.info  'foo'
+        subject.info 'foo'
         Timecop.freeze(Time.now + 0.1)
         subject.debug 'bar'
         Timecop.freeze(Time.now + 0.1)
@@ -124,7 +139,7 @@ class RackJsonLogger
         let(:attach_event_logger) { false }
         let(:logger) {
           Logger.new(stringio).tap { |l|
-            l.formatter = -> (sev, datetime, progname, msg) {
+            l.formatter = -> (sev, _datetime, progname, msg) {
               [sev, progname, msg].join(?:) << "\n"
             }
           }

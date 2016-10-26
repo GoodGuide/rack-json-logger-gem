@@ -30,7 +30,7 @@ class RackJsonLogger
     end
 
     def inspect
-      "#<#{self.class.name}:#{self.object_id}>"
+      "#<#{self.class.name}:#{object_id}>"
     end
 
     private
@@ -47,6 +47,14 @@ class RackJsonLogger
           other.severity == severity &&
           other.progname == progname &&
           (time - other.time).abs < 0.000000000000001
+      end
+
+      def as_json
+        to_h
+      end
+
+      def to_json
+        as_json.to_json
       end
     end
 
@@ -93,7 +101,7 @@ class RackJsonLogger
         when 2
           :stderr
         else
-
+          @io.inspect
         end
       end
     end
@@ -114,7 +122,7 @@ class RackJsonLogger
           return super unless event_logger
           event_logger.add_logger_event(stream_name, severity, datetime, progname, msg)
           # the return of format_message is given to @logdev.write(); nil here will cause no write to happen
-          return nil
+          nil
         end
       end
     end

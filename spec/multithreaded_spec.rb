@@ -57,7 +57,7 @@ class RackJsonLogger
 
     # focus
     it 'works as expected' do
-      threads = 3.times.map { |i|
+      threads = Array.new(3) { |i|
         Thread.new do
           Thread.current[:id] = "foo#{i}"
           app.call(env("foo#{i}"))
@@ -68,21 +68,19 @@ class RackJsonLogger
 
       threads.each(&:join)
 
-      expected = threads.inject(StringIO.new) { |io, thread|
+      expected = threads.each_with_object(StringIO.new) { |thread, io|
         key = thread[:id]
         iterations.times do |i|
           io.puts "#{key}: stderr: some stderr output from #{key} path=/#{key} #{i}"
           io.puts "#{key}: stdout: some stdout output from #{key} path=/#{key} #{i}"
           io.puts "#{key}: rack.logger: some logger output from #{key} path=/#{key} #{i}"
         end
-        io
       }
 
-      actual = threads.inject(StringIO.new) { |io, thread|
-        thread.value.fetch(:log_events, []).each { |e|
+      actual = threads.each_with_object(StringIO.new) { |thread, io|
+        thread.value.fetch(:log_events, []).each do |e|
           io.puts "#{thread[:id]}: #{e.stream}: #{e.body}"
-        }
-        io
+        end
       }
 
       assert_equal(expected.string, actual.string)

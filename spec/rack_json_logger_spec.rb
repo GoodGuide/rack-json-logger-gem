@@ -280,7 +280,7 @@ describe RackJsonLogger do
           it 'contains the log events' do
             assert_equal(
               [
-                RackJsonLogger::EventLogger::LogEvent.new(:'rack.logger', request_duration, 'some event', 'INFO')
+                RackJsonLogger::EventLogger::LogEvent.new(:'rack.logger', request_duration, 'some event', 'INFO'),
               ],
               log_obj.fetch(:log_events)
             )

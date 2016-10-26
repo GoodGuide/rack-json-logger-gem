@@ -22,6 +22,7 @@ Metrics/CyclomaticComplexity:
 
 Metrics/LineLength:
   Max: 160
+  Enabled: false
 
 Metrics/MethodLength:
   Max: 20
