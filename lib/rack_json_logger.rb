@@ -96,7 +96,9 @@ class RackJsonLogger
     end
 
     def exception
-      @exception || env['sinatra.error']
+      @exception ||
+        env['sinatra.error'] ||
+        env['action_dispatch.exception']
     end
 
     def request_as_json

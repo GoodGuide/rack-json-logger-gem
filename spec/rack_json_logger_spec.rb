@@ -42,8 +42,13 @@ APPS = {
     rack_response
   },
   sinatra_error: -> (env) {
-    # simulate a Situation where the app is a Sinatra app whihc has handled the exception and set the sinatra.error key
+    # simulate a situation where the app is Sinatra (with `raise_errors` set to false) and has handled the exception and set the sinatra.error key
     env['sinatra.error'] = simplified_error
+    rack_response status: 500, body: ':-('
+  },
+  rails_error: -> (env) {
+    # simulate a situation where the app is Rails and has handled the error internally then set the action_dispatch.exception key
+    env['action_dispatch.exception'] = simplified_error
     rack_response status: 500, body: ':-('
   },
   explodey: -> (_env) {
@@ -331,6 +336,10 @@ describe RackJsonLogger do
 
       'when the app has an exception but Sinatra handles it' => -> (_) {
         let(:real_app) { APPS.fetch(:sinatra_error) }
+      },
+
+      'when the app has an exception but Rails handles it' => -> (_) {
+        let(:real_app) { APPS.fetch(:rails_error) }
       },
     }.each do |description, setup|
       describe description do
