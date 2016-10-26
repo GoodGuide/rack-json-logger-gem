@@ -3,27 +3,51 @@ require 'rack'
 require_relative './spec_helper'
 require 'rack_json_logger'
 
+def rack_response(status: 200, headers: {}, body: 'OK')
+  body = Array(body)
+  [
+    status,
+    {
+      'Content-Type' => 'text/plain',
+      'Content-Length' => body.map(&:to_s).map(&:length).reduce(:+).to_s,
+    }.merge(headers),
+    body,
+  ]
+end
+
+def rack_json_response(status: 200, headers: {}, body: 'OK')
+  rack_response(
+    status: status,
+    headers: {
+      'Content-Type' => 'application/json',
+    }.merge(headers),
+    body: body.to_json
+  )
+end
+
+def simplified_error(msg='boom')
+  e = RuntimeError.new(msg)
+  def e.backtrace
+    [
+      'some-file.rb:4',
+      'some-other-file.rb:23',
+      'some-file.rb:1',
+    ]
+  end
+  e
+end
+
 APPS = {
   happy: -> (_env) {
-    [
-      200,
-      {
-        'Content-Type' => 'text/plain',
-        'Content-Length' => '2',
-      },
-      ['OK'],
-    ]
+    rack_response
   },
-  sad: -> (_env) {
-    e = RuntimeError.new('boom')
-    def e.backtrace
-      [
-        'some-file.rb:4',
-        'some-other-file.rb:23',
-        'some-file.rb:1',
-      ]
-    end
-    fail e
+  sinatra_error: -> (env) {
+    # simulate a Situation where the app is a Sinatra app whihc has handled the exception and set the sinatra.error key
+    env['sinatra.error'] = simplified_error
+    rack_response status: 500, body: ':-('
+  },
+  explodey: -> (_env) {
+    fail simplified_error
   },
 }.freeze
 
@@ -40,16 +64,6 @@ describe RackJsonLogger do
     }
   }
 
-  let(:real_app) { APPS[:happy] }
-  let(:app_wrapper) {
-    -> (env) {
-      env = env.dup
-      app_invocations << env
-      Timecop.freeze(Time.now + request_duration)
-      real_app.call(env)
-    }
-  }
-
   let(:request_duration) { rand }
   let(:request_path) { '/foo' }
   let(:request_method) { 'GET' }
@@ -57,8 +71,22 @@ describe RackJsonLogger do
   let(:request_uri) { [request_path, request_query_string].join('?') }
   let(:http_user_agent) { ['minitest', (rand * 100).to_i.to_s(16)].join('-') }
 
+  let(:real_app) { APPS.fetch(:happy) }
+
+  let(:app_wrapper) {
+    -> (env) {
+      app_invocations << env.dup
+      Timecop.freeze(Time.now + request_duration)
+      real_app.call(env)
+    }
+  }
+
   let(:app) { RackJsonLogger.new(app_wrapper, formatter: dummy_formatter) }
   subject { app }
+
+  let(:call_app) {
+    app.call(env)
+  }
 
   let(:env) {
     Rack::MockRequest.env_for(request_uri).merge(
@@ -72,36 +100,38 @@ describe RackJsonLogger do
 
   describe '#call' do
     it 'calls the app and formatters exactly once each' do
-      app.call(env)
+      call_app
       assert_equal 1, app_invocations.length
       assert_equal 1, formatter_invocations.length
     end
 
     it "calls the app with the `env`, changing 'rack.errors' & 'rack.logger' to capture the output, while returning those keys to the original values" do
       original_env = env.dup
-      app.call(env)
+      call_app
 
       called_with_env = app_invocations.first
 
+      assert_equal env.keys, called_with_env.keys
+
       (env.keys - ['rack.errors', 'rack.logger']).each do |key|
-        assert_equal env[key], called_with_env[key],
+        assert_equal env.fetch(key), called_with_env.fetch(key),
           "called app with env[#{key}] different to supplied env"
       end
 
-      env.keys.each do |key|
-        assert_equal original_env[key], env[key],
+      original_env.keys.each do |key|
+        assert_equal original_env.fetch(key), env.fetch(key),
           "env[#{key}] mutated"
       end
 
-      assert_instance_of RackJsonLogger::EventLogger::IOProxy, called_with_env['rack.errors']
-      assert_respond_to called_with_env['rack.logger'], :stream_name
+      assert_instance_of RackJsonLogger::EventLogger::IOProxy, called_with_env.fetch('rack.errors')
+      assert_respond_to called_with_env.fetch('rack.logger'), :stream_name
     end
 
     describe 'when pushed through the Rack::Lint middleware' do
-      let(:real_app) { Rack::Lint.new(APPS[:happy]) }
+      let(:real_app) { Rack::Lint.new(APPS.fetch(:happy)) }
 
       it 'passes the checks' do
-        app.call(env)
+        call_app
       end
     end
 
@@ -136,7 +166,7 @@ describe RackJsonLogger do
       describe 'request.user_agent' do
         before { assert env.key?('HTTP_USER_AGENT') }
         it 'is the value of the HTTP_USER_AGENT header' do
-          assert_equal http_user_agent, log_obj[:request][:user_agent]
+          assert_equal http_user_agent, log_obj.fetch(:request).fetch(:user_agent)
         end
       end
 
@@ -145,21 +175,21 @@ describe RackJsonLogger do
           before { env['REQUEST_URI'] = request_uri }
 
           it 'uses that directly' do
-            assert_equal request_uri, log_obj[:request][:path]
+            assert_equal request_uri, log_obj.fetch(:request).fetch(:path)
           end
         end
 
         describe 'when request env has no REQUEST_URI key' do
           before {
             env.delete('REQUEST_URI')
-            assert_equal request_path, env['PATH_INFO']
-            assert_equal request_query_string, env['QUERY_STRING']
+            assert_equal request_path, env.fetch('PATH_INFO')
+            assert_equal request_query_string, env.fetch('QUERY_STRING')
           }
 
           it 'uses a combination of the REQUEST_PATH and QUERY_STRING' do
             assert_equal(
-              [env['PATH_INFO'], env['QUERY_STRING']].join('?'),
-              log_obj[:request][:path]
+              [env.fetch('PATH_INFO'), env.fetch('QUERY_STRING')].join('?'),
+              log_obj.fetch(:request).fetch(:path)
             )
           end
         end
@@ -172,7 +202,7 @@ describe RackJsonLogger do
           before { env['HTTP_X_REAL_IP'] = '1.2.3.4' }
 
           it 'uses that directly' do
-            assert_equal '1.2.3.4', log_obj[:request][:remote_addr]
+            assert_equal '1.2.3.4', log_obj.fetch(:request).fetch(:remote_addr)
           end
         end
 
@@ -180,7 +210,7 @@ describe RackJsonLogger do
           before { env.delete('HTTP_X_REAL_IP') }
 
           it 'uses REMOTE_ADDR' do
-            assert_equal env['REMOTE_ADDR'], log_obj[:request][:remote_addr]
+            assert_equal env.fetch('REMOTE_ADDR'), log_obj.fetch(:request).fetch(:remote_addr)
           end
         end
       end
@@ -192,7 +222,7 @@ describe RackJsonLogger do
           before { env['HTTP_HOST'] = 'foo.com' }
 
           it 'uses that directly' do
-            assert_equal env['HTTP_HOST'], log_obj[:request][:host]
+            assert_equal env.fetch('HTTP_HOST'), log_obj.fetch(:request).fetch(:host)
           end
         end
 
@@ -200,7 +230,7 @@ describe RackJsonLogger do
           before { env.delete('HTTP_HOST') }
 
           it 'uses SERVER_HOST' do
-            assert_equal env['SERVER_HOST'], log_obj[:request][:host]
+            assert_equal env.fetch('SERVER_HOST'), log_obj.fetch(:request).fetch(:host)
           end
         end
       end
@@ -212,7 +242,7 @@ describe RackJsonLogger do
           before { env['HTTP_X_FORWARDED_PROTO'] = 'https' }
 
           it 'uses that directly' do
-            assert_equal env['HTTP_X_FORWARDED_PROTO'], log_obj[:request][:scheme]
+            assert_equal env.fetch('HTTP_X_FORWARDED_PROTO'), log_obj.fetch(:request).fetch(:scheme)
           end
         end
 
@@ -220,7 +250,7 @@ describe RackJsonLogger do
           before { env.delete('HTTP_X_FORWARDED_PROTO') }
 
           it 'uses rack.url_scheme' do
-            assert_equal env['rack.url_scheme'], log_obj[:request][:scheme]
+            assert_equal env.fetch('rack.url_scheme'), log_obj.fetch(:request).fetch(:scheme)
           end
         end
       end
@@ -229,20 +259,20 @@ describe RackJsonLogger do
         it 'sets the id from a X-Request-Id header' do
           env['HTTP_X_REQUEST_ID'] = 'someId123'
 
-          assert_equal('someId123', log_obj[:id])
+          assert_equal('someId123', log_obj.fetch(:id))
         end
 
         it 'sets the id from an action_dispatch.request_id key in the env' do
           env['action_dispatch.request_id'] = 'someId123'
 
-          assert_equal('someId123', log_obj[:id])
+          assert_equal('someId123', log_obj.fetch(:id))
         end
 
         it 'if both present, gives preference to the action_dispatch.request_id' do
           env['HTTP_X_REQUEST_ID'] = 'xRequestId123'
           env['action_dispatch.request_id'] = 'actionDispactchId'
 
-          assert_equal('actionDispactchId', log_obj[:id])
+          assert_equal('actionDispactchId', log_obj.fetch(:id))
         end
       end
 
@@ -255,8 +285,8 @@ describe RackJsonLogger do
               }
             }
             it 'includes the Location header in log_obj.response.redirect' do
-              assert_equal status, log_obj[:response][:status]
-              assert_equal 'http://google.com', log_obj[:response][:redirect]
+              assert_equal status, log_obj.fetch(:response).fetch(:status)
+              assert_equal 'http://google.com', log_obj.fetch(:response).fetch(:redirect)
             end
           end
         end
@@ -272,8 +302,8 @@ describe RackJsonLogger do
         describe 'when the app used the log' do
           let(:real_app) do
             -> (env) {
-              env['rack.logger'].info 'some event'
-              APPS[:happy].call(env)
+              env.fetch('rack.logger').info 'some event'
+              APPS.fetch(:happy).call(env)
             }
           end
 
@@ -289,105 +319,115 @@ describe RackJsonLogger do
       end
     end
 
-    describe 'when the app raises an exception' do
-      let(:real_app) { APPS[:sad] }
+    {
+      'when the app raises an exception' => -> (_) {
+        let(:real_app) { APPS.fetch(:explodey) }
 
-      let(:call_app) {
-        ex = assert_raises(RuntimeError) { app.call(env) }
-        assert_equal 'boom', ex.message
-      }
+        let(:call_app) {
+          ex = assert_raises(RuntimeError) { app.call(env) }
+          assert_equal 'boom', ex.message
+        }
+      },
 
-      let(:log_obj) {
-        call_app
-        _logger, log_obj, _env = formatter_invocations.first
-        log_obj
-      }
+      'when the app has an exception but Sinatra handles it' => -> (_) {
+        let(:real_app) { APPS.fetch(:sinatra_error) }
+      },
+    }.each do |description, setup|
+      describe description do
+        instance_eval(&setup)
 
-      it 'calls the app and formatters exactly once each' do
-        call_app
-        assert_equal 1, app_invocations.length
-        assert_equal 1, formatter_invocations.length
-      end
+        let(:log_obj) {
+          call_app
+          _logger, log_obj, _env = formatter_invocations.first
+          log_obj
+        }
 
-      describe 'log_obj' do
-        describe 'exception' do
-          it 'includes the exception' do
-            assert_equal(
-              {
-                class: RuntimeError,
-                message: 'boom',
-                backtrace: [
-                  'some-file.rb:4',
-                  'some-other-file.rb:23',
-                  'some-file.rb:1',
-                ],
-              },
-              log_obj[:exception]
-            )
-          end
-
-          describe 'backtrace' do
-            describe 'when the middleware has trace_stack = false' do
-              before {
-                app.trace_stack = false
-              }
-
-              it 'is an empty array' do
-                assert_equal [], log_obj[:exception][:backtrace]
-              end
-            end
-
-            describe 'when the middleware has trace_stack = a proc' do
-              before {
-                app.trace_stack = -> (file) { file =~ /some-other-file/ }
-              }
-
-              it 'filters the backtrace' do
-                assert_equal(
-                  ['some-other-file.rb:23'],
-                  log_obj.fetch(:exception).fetch(:backtrace)
-                )
-              end
-            end
-          end
+        it 'calls the app and formatters exactly once each' do
+          call_app
+          assert_equal 1, app_invocations.length
+          assert_equal 1, formatter_invocations.length
         end
 
-        describe 'env' do
-          it 'is the request env' do
-            assert_equal(env, log_obj[:env])
-          end
-
-          describe 'when the middleware has trace_env = false' do
-            before { app.trace_env = false }
-
-            it 'is an empty hash' do
-              assert log_obj.fetch(:env).empty?
-            end
-          end
-
-          describe 'when the middleware has trace_env = proc' do
-            before {
-              app.trace_env = -> (key, _value) { key =~ /^HTTP_/ }
-            }
-
-            it 'filters the env' do
+        describe 'log_obj' do
+          describe 'exception' do
+            it 'includes the exception' do
               assert_equal(
                 {
-                  'HTTP_ACCEPT' => '*/*',
-                  'HTTP_CONNECTION' => 'close',
-                  'HTTP_HOST' => 'localhost',
-                  'HTTP_USER_AGENT' => http_user_agent,
+                  class: RuntimeError,
+                  message: 'boom',
+                  backtrace: [
+                    'some-file.rb:4',
+                    'some-other-file.rb:23',
+                    'some-file.rb:1',
+                  ],
                 },
-                log_obj.fetch(:env)
+                log_obj.fetch(:exception)
               )
             end
 
-            describe 'with wrong arity' do
-              it 'raises an exception' do
-                ex = assert_raises(ArgumentError) {
-                  app.trace_env = -> (key) { key =~ /^HTTP_/ }
+            describe 'backtrace' do
+              describe 'when the middleware has trace_stack = false' do
+                before {
+                  app.trace_stack = false
                 }
-                assert_match(/trace_env/, ex.message)
+
+                it 'is an empty array' do
+                  assert_equal [], log_obj.fetch(:exception).fetch(:backtrace)
+                end
+              end
+
+              describe 'when the middleware has trace_stack = a proc' do
+                before {
+                  app.trace_stack = -> (file) { file =~ /some-other-file/ }
+                }
+
+                it 'filters the backtrace' do
+                  assert_equal(
+                    ['some-other-file.rb:23'],
+                    log_obj.fetch(:exception).fetch(:backtrace)
+                  )
+                end
+              end
+            end
+          end
+
+          describe 'env' do
+            it 'is the request env' do
+              assert_equal(env, log_obj.fetch(:env))
+            end
+
+            describe 'when the middleware has trace_env = false' do
+              before { app.trace_env = false }
+
+              it 'is an empty hash' do
+                assert log_obj.fetch(:env).empty?
+              end
+            end
+
+            describe 'when the middleware has trace_env = proc' do
+              before {
+                app.trace_env = -> (key, _value) { key =~ /^HTTP_/ }
+              }
+
+              it 'filters the env' do
+                assert_equal(
+                  {
+                    'HTTP_ACCEPT' => '*/*',
+                    'HTTP_CONNECTION' => 'close',
+                    'HTTP_HOST' => 'localhost',
+                    'HTTP_USER_AGENT' => http_user_agent,
+                  },
+                  log_obj.fetch(:env)
+                )
+              end
+
+              describe 'with wrong arity' do
+                it 'raises an exception' do
+                  ex = assert_raises(ArgumentError) {
+                    app.trace_env = -> (key) { key =~ /^HTTP_/ }
+                  }
+                  assert_match(/trace_env/, ex.message)
+                end
               end
             end
           end

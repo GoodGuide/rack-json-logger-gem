@@ -95,6 +95,10 @@ class RackJsonLogger
       log
     end
 
+    def exception
+      @exception || env['sinatra.error']
+    end
+
     def request_as_json
       {
         method: env['REQUEST_METHOD'],
