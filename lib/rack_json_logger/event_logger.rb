@@ -108,7 +108,7 @@ class RackJsonLogger
 
     module LoggerProxy
       def wrap(logger, stream_name)
-        logger = (logger || ::Logger.new(STDOUT)).clone
+        logger = logger.clone
         logger.extend(InstanceMethods)
         logger.stream_name = stream_name
         logger

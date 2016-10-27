@@ -21,9 +21,7 @@ class RackJsonLogger
   end
 
   def self.output_proxies
-    @stdout_proxy ||= EventLogger::IOProxy.new(STDOUT)
-    @stderr_proxy ||= EventLogger::IOProxy.new(STDERR)
-    [@stdout_proxy, @stderr_proxy]
+    [EventLogger::IOProxy.new($stdout), EventLogger::IOProxy.new($stderr)]
   end
 
   attr_reader :app
@@ -191,7 +189,7 @@ class RackJsonLogger
     Thread.current[:rack_json_logs_event_handler] = event_logger
 
     env['rack.errors'] = EventLogger::IOProxy.new(previous_rack_errors, :'rack.errors')
-    env['rack.logger'] = EventLogger::LoggerProxy.wrap(previous_rack_logger, :'rack.logger')
+    env['rack.logger'] = EventLogger::LoggerProxy.wrap(previous_rack_logger || default_logger, :'rack.logger')
 
     begin
       yield
