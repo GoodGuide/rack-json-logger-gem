@@ -50,7 +50,7 @@ class RackJsonLogger
       t.trace_stack_filter = trace_stack_filter
     }.as_json
 
-    formatter.call(logger(env), log, env)
+    formatter.call(logger, log, env)
 
     return response unless exception
     raise exception # rubocop:disable Style/SignalException
@@ -203,8 +203,15 @@ class RackJsonLogger
     end
   end
 
-  def logger(env)
-    @logger || env.fetch('rack.logger', Logger.new(STDERR))
+  def logger
+    @logger ||= default_logger
+  end
+
+  def default_logger
+    Logger.new(STDOUT).tap do |logger|
+      logger.level = :debug
+      logger.formatter = -> (_, _, _, msg) { msg << "\n" }
+    end
   end
 
   def validate_formatter(f)

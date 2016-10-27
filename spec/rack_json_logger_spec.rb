@@ -403,7 +403,7 @@ describe RackJsonLogger do
           describe 'env' do
             subject { log_obj.fetch(:env) }
 
-            it 'is the request env (with non-primative values #inspect-ed' do
+            it 'is the request env (with non-primative values #inspect-ed)' do
               env.keys.each do |key|
                 true_value = env.fetch(key)
                 returned_value = subject.fetch(key)
@@ -460,6 +460,15 @@ describe RackJsonLogger do
   end
 
   describe 'logger device used for output' do
+    describe 'by default' do
+      it 'uses a default, simple logger which outputs to STDOUT and has a message-only format' do
+        app.call(env)
+        logger, _log_obj, _env = formatter_invocations.first
+        assert_equal STDOUT, logger.instance_variable_get(:@logdev).instance_variable_get(:@dev)
+        assert_equal "foo\n", logger.send(:format_message, 'INFO', Time.now, 'prog', 'foo')
+      end
+    end
+
     describe 'when #logger= option is set' do
       let(:default_logger) { Logger.new(STDOUT) }
       before { subject.logger = default_logger }
@@ -468,28 +477,6 @@ describe RackJsonLogger do
         app.call(env)
         logger, _log_obj, _env = formatter_invocations.first
         assert_equal(default_logger, logger)
-      end
-    end
-
-    describe 'when rack.logger is present in request env' do
-      let(:rack_logger) { Logger.new(STDOUT) }
-      before { env['rack.logger'] = rack_logger }
-
-      it 'calls the formatter with logger = env["rack.logger"]' do
-        app.call(env)
-        logger, _log_obj, _env = formatter_invocations.first
-        assert_equal(rack_logger, logger)
-      end
-
-      describe 'when #logger= is also set' do
-        let(:default_logger) { Logger.new(STDOUT) }
-        before { subject.logger = default_logger }
-
-        it 'calls the formatter with logger set to the default, not the rack.logger' do
-          app.call(env)
-          logger, _log_obj, _env = formatter_invocations.first
-          assert_equal(default_logger, logger)
-        end
       end
     end
   end
