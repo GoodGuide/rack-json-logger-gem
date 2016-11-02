@@ -115,6 +115,9 @@ class RackJsonLogger
         scheme: env.fetch('HTTP_X_FORWARDED_PROTO') {
           env['rack.url_scheme']
         },
+        parameters: env.fetch('action_dispatch.request.parameters') {
+          env.fetch('rack.query_hash', {})
+        },
       }
     end
 

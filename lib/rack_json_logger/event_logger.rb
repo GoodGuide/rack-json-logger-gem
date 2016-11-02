@@ -49,8 +49,13 @@ class RackJsonLogger
           (time - other.time).abs < 0.000000000000001
       end
 
-      def as_json
-        to_h.reject { |_k, v| v.nil? }
+      def as_json(*args)
+        h = to_h.reject { |_k, v| v.nil? }
+        if h.respond_to?(:as_json)
+          h.as_json(*args)
+        else
+          h
+        end
       end
 
       def to_json

@@ -13,7 +13,7 @@ class RackJsonLogger
     settings.log_subscriber_components_to_remove = ['ActionController', 'ActionView']
 
     # limit to the all-caps keys which are the basic HTTP_ header and common CGI-style env vars.
-    settings.trace_env = -> (key, value) {
+    settings.trace_env = -> (key, _value) {
       key =~ /^[A-Z0-9_.-]+$/
     }
 
@@ -40,14 +40,14 @@ class RackJsonLogger
     end
 
     # Let RackJsonLogger capture and arbitrary STDOUT/STDERR which happens from threads which are used for request handling
-    initializer 'rack_json_logger.setup_stdio_proxies' do |app|
+    initializer 'rack_json_logger.setup_stdio_proxies' do
       next unless settings.enabled
       next unless settings.capture_stdio
       $stdout, $stderr = RackJsonLogger.output_proxies
     end
 
     # remove Rails' default logger output for ActionView and ActionController
-    config.after_initialize do |app|
+    config.after_initialize do
       next unless settings.enabled
 
       components = settings.log_subscriber_components_to_remove
@@ -64,8 +64,6 @@ class RackJsonLogger
         end
       end
     end
-
-    private
 
     def self.unsubscribe_notifications(component, subscriber)
       events = subscriber.public_methods(false).reject { |method| method.to_s == 'call' }
