@@ -225,3 +225,5 @@ class RackJsonLogger
     trace_env
   end
 end
+
+require 'rack_json_logger/railtie' if defined?(Rails)

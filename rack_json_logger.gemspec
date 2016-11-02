@@ -22,6 +22,7 @@ Gem::Specification.new do |gem|
   gem.add_dependency 'multi_json'
   gem.add_dependency 'colorize'
   gem.add_dependency 'trollop'
+  gem.add_dependency 'rack-robustness'
   gem.add_development_dependency 'minitest', '~> 5.0'
   gem.add_development_dependency 'minitest-reporters'
   gem.add_development_dependency 'minitest-focus'
