@@ -1,11 +1,14 @@
 require 'rails/railtie'
 require 'active_support/ordered_options'
 require 'active_support/log_subscriber'
-require 'rack_json_logger'
+require 'action_dispatch/http/filter_parameters'
 require 'rack/robustness'
+require 'rack_json_logger'
 
 class RackJsonLogger
   class Railtie < Rails::Railtie
+    TransactionLogEvent.include ActionDispatch::Http::FilterParameters
+
     config.rack_json_logger = settings = ActiveSupport::OrderedOptions.new
 
     settings.enabled = false
