@@ -2,7 +2,6 @@ require 'rails/railtie'
 require 'active_support/ordered_options'
 require 'active_support/log_subscriber'
 require 'action_dispatch/http/filter_parameters'
-require 'rack/robustness'
 require 'rack_json_logger'
 
 class RackJsonLogger
@@ -34,12 +33,6 @@ class RackJsonLogger
           logger.send("#{key}=", val)
         end
       end
-
-      # prevent Rails built-in DebugExceptions middleware from logging the exception
-      config.action_dispatch.show_exceptions = false
-
-      # and with show_exceptions disabled, prevent an exception from rising all the way up to rack
-      app.middleware.insert_before RackJsonLogger, Rack::Robustness
     end
 
     # Let RackJsonLogger capture and arbitrary STDOUT/STDERR which happens from threads which are used for request handling
